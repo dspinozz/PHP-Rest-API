@@ -89,3 +89,16 @@ docker-compose.override.yml
 !AUTHENTICATION_SUMMARY.md
 !SECURITY_FEATURES.md
 !CONTRIBUTING.md
+
+# Sensitive files
+TOKEN_LOCATION.md
+.env
+.env.*
+
+# Development notes (should not be in repo)
+PUSH_INSTRUCTIONS.md
+SETUP_INSTRUCTIONS.md
+TESTS_IMPLEMENTED.md
+TEST_RESULTS.md
+TEST_VERIFICATION.md
+phpunit.xml.dist

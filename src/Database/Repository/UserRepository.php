@@ -90,6 +90,169 @@ class UserRepository
     }
 
     /**
+     * Update user email
+     * 
+     * @param int $id User ID
+     * @param string $email New email address
+     * @return User Updated user
+     * @throws \InvalidArgumentException If email is invalid
+     * @throws \RuntimeException If user not found or email already taken
+     */
+    public function updateEmail(int $id, string $email): User
+    {
+        // Check user exists
+        $user = $this->findById($id);
+        if ($user === null) {
+            throw new \RuntimeException('User not found');
+        }
+
+        // Check email not already taken by another user
+        $existingUser = $this->findByEmail($email);
+        if ($existingUser !== null && $existingUser->id !== $id) {
+            throw new \RuntimeException('Email already in use by another user');
+        }
+
+        // Validate email format
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            throw new \InvalidArgumentException('Invalid email format');
+        }
+
+        // Update user
+        $this->db->execute(
+            'UPDATE ' . UserSchema::TABLE_NAME . ' SET email = ? WHERE id = ?',
+            [$email, $id]
+        );
+
+        // Return updated user
+        $updatedUser = $this->findById($id);
+        if ($updatedUser === null) {
+            throw new \RuntimeException('Failed to retrieve updated user');
+        }
+
+        return $updatedUser;
+    }
+
+    /**
+     * Update user password
+     * 
+     * @param int $id User ID
+     * @param string $passwordHash New password hash
+     * @return User Updated user
+     * @throws \RuntimeException If user not found
+     */
+    public function updatePassword(int $id, string $passwordHash): User
+    {
+        // Check user exists
+        $user = $this->findById($id);
+        if ($user === null) {
+            throw new \RuntimeException('User not found');
+        }
+
+        // Update password
+        $this->db->execute(
+            'UPDATE ' . UserSchema::TABLE_NAME . ' SET password_hash = ? WHERE id = ?',
+            [$passwordHash, $id]
+        );
+
+        // Return updated user
+        $updatedUser = $this->findById($id);
+        if ($updatedUser === null) {
+            throw new \RuntimeException('Failed to retrieve updated user');
+        }
+
+        return $updatedUser;
+    }
+
+    /**
+     * Update user (email and/or password)
+     * 
+     * @param int $id User ID
+     * @param array<string, mixed> $data Fields to update (email, password_hash)
+     * @return User Updated user
+     * @throws \InvalidArgumentException If no valid fields provided
+     * @throws \RuntimeException If user not found
+     */
+    public function update(int $id, array $data): User
+    {
+        // Check user exists
+        $user = $this->findById($id);
+        if ($user === null) {
+            throw new \RuntimeException('User not found');
+        }
+
+        $updates = [];
+        $params = [];
+
+        // Handle email update
+        if (isset($data['email'])) {
+            $email = $data['email'];
+            
+            // Validate email format
+            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                throw new \InvalidArgumentException('Invalid email format');
+            }
+
+            // Check email not already taken
+            $existingUser = $this->findByEmail($email);
+            if ($existingUser !== null && $existingUser->id !== $id) {
+                throw new \RuntimeException('Email already in use by another user');
+            }
+
+            $updates[] = 'email = ?';
+            $params[] = $email;
+        }
+
+        // Handle password update
+        if (isset($data['password_hash'])) {
+            $updates[] = 'password_hash = ?';
+            $params[] = $data['password_hash'];
+        }
+
+        if (empty($updates)) {
+            throw new \InvalidArgumentException('No valid fields to update');
+        }
+
+        // Add ID to params
+        $params[] = $id;
+
+        // Execute update
+        $sql = 'UPDATE ' . UserSchema::TABLE_NAME . ' SET ' . implode(', ', $updates) . ' WHERE id = ?';
+        $this->db->execute($sql, $params);
+
+        // Return updated user
+        $updatedUser = $this->findById($id);
+        if ($updatedUser === null) {
+            throw new \RuntimeException('Failed to retrieve updated user');
+        }
+
+        return $updatedUser;
+    }
+
+    /**
+     * Delete user by ID
+     * 
+     * @param int $id User ID
+     * @return bool True if user was deleted
+     * @throws \RuntimeException If user not found
+     */
+    public function delete(int $id): bool
+    {
+        // Check user exists
+        $user = $this->findById($id);
+        if ($user === null) {
+            throw new \RuntimeException('User not found');
+        }
+
+        // Delete user
+        $this->db->execute(
+            'DELETE FROM ' . UserSchema::TABLE_NAME . ' WHERE id = ?',
+            [$id]
+        );
+
+        return true;
+    }
+
+    /**
      * Get all users
      * 
      * @return array<int, User>
@@ -101,6 +264,31 @@ class UserRepository
         );
         
         return array_map(fn($row) => User::fromArray($row), $data);
+    }
+
+    /**
+     * Count total users
+     * 
+     * @return int Total number of users
+     */
+    public function count(): int
+    {
+        $result = $this->db->queryOne(
+            'SELECT COUNT(*) as count FROM ' . UserSchema::TABLE_NAME
+        );
+        
+        return $result ? (int)$result['count'] : 0;
+    }
+
+    /**
+     * Check if user exists by ID
+     * 
+     * @param int $id User ID
+     * @return bool True if user exists
+     */
+    public function exists(int $id): bool
+    {
+        return $this->findById($id) !== null;
     }
 
     /**
