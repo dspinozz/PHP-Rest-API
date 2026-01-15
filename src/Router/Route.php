@@ -45,6 +45,11 @@ class Route
             return true;
         }
 
+        // Check if route has parameters
+        if (strpos($this->path, '{') === false) {
+            return false;
+        }
+
         // Convert route pattern to regex
         $pattern = $this->convertToRegex($this->path);
         
@@ -59,6 +64,8 @@ class Route
 
     /**
      * Convert route path to regex pattern
+     * 
+     * Handles paths like /users/{id} -> /users/([^/]+)
      */
     private function convertToRegex(string $path): string
     {
@@ -67,14 +74,16 @@ class Route
             throw new \InvalidArgumentException('Route path must start with /');
         }
 
-        // Replace {param} with regex pattern (non-greedy, no slashes)
-        $pattern = preg_replace(
-            '/\{([a-zA-Z0-9_]+)\}/',
-            '([^/]+)',
-            preg_quote($path, '/')
-        );
+        // Replace parameters with placeholders temporarily
+        $tempPath = preg_replace('/\{[a-zA-Z0-9_]+\}/', '___PARAM___', $path);
+        
+        // Quote the path for regex using # as delimiter (avoids escaping /)
+        $quotedPath = preg_quote($tempPath, '#');
+        
+        // Replace the placeholders with the actual regex pattern
+        $pattern = str_replace('___PARAM___', '([^/]+)', $quotedPath);
 
-        return '/^' . $pattern . '$/';
+        return '#^' . $pattern . '$#';
     }
 
     /**

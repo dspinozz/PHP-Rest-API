@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-use RestApi\Application;
+use RestApi\Application\Application;
 use RestApi\Middleware\AuthMiddleware;
 use RestApi\Middleware\RateLimitMiddleware;
 use RestApi\Security\JwtService;
@@ -10,6 +10,7 @@ use RestApi\Security\PasswordHasher;
 use RestApi\Database\Database;
 use RestApi\Database\Repository\UserRepository;
 use RestApi\Http\RequestHelper;
+use RestApi\Http\ResponseFactory;
 use RestApi\Exceptions\HttpException;
 use RestApi\Exceptions\ErrorCodes;
 use RestApi\Api\ResponseFormatter;
@@ -22,6 +23,7 @@ $dbPath = __DIR__ . '/../data/users.db';
 $jwtService = new JwtService($jwtSecret);
 $db = Database::sqlite($dbPath);
 $userRepository = new UserRepository($db);
+$responseFactory = new ResponseFactory();
 
 // Initialize user table
 try {
@@ -32,6 +34,7 @@ try {
 
 // Create application
 $app = new Application();
+
 
 // Apply rate limiting to all routes
 $app->middleware(new RateLimitMiddleware(maxRequests: 100, windowSeconds: 3600));
@@ -122,35 +125,35 @@ $app->post('/login', function($request) use ($userRepository, $jwtService) {
 /**
  * GET /me - Get current authenticated user
  */
-$app->get('/me', function($request) use ($authMiddleware) {
-    return $authMiddleware($request, function($req) {
+$app->get('/me', function($request) use ($authMiddleware, $responseFactory) {
+    return $authMiddleware($request, function($req) use ($responseFactory) {
         $user = $req->getAttribute('user');
         if (!is_array($user)) {
             throw new HttpException('User data not found', ErrorCodes::UNAUTHORIZED);
         }
-        return ResponseFormatter::success(['user' => $user]);
+        return $responseFactory->json(ResponseFormatter::success(['user' => $user]));
     });
 });
 
 /**
  * GET /users - List all users
  */
-$app->get('/users', function($request) use ($userRepository, $authMiddleware) {
-    return $authMiddleware($request, function($req) use ($userRepository) {
+$app->get('/users', function($request) use ($userRepository, $authMiddleware, $responseFactory) {
+    return $authMiddleware($request, function($req) use ($userRepository, $responseFactory) {
         $users = $userRepository->findAll();
         $userArrays = array_map(fn($user) => $user->toArray(), $users);
-        return ResponseFormatter::success([
+        return $responseFactory->json(ResponseFormatter::success([
             'users' => $userArrays,
             'total' => count($userArrays)
-        ]);
+        ]));
     });
 });
 
 /**
  * GET /users/{id} - Get user by ID
  */
-$app->get('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware) {
-    return $authMiddleware($request, function($req) use ($userRepository, $params) {
+$app->get('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware, $responseFactory) {
+    return $authMiddleware($request, function($req) use ($userRepository, $params, $responseFactory) {
         $id = (int)$params['id'];
         
         if ($id <= 0) {
@@ -162,78 +165,15 @@ $app->get('/users/{id}', function($request, $params) use ($userRepository, $auth
             throw new HttpException('User not found', ErrorCodes::NOT_FOUND);
         }
 
-        return ResponseFormatter::success(['user' => $user->toArray()]);
+        return $responseFactory->json(ResponseFormatter::success(['user' => $user->toArray()]));
     });
 });
 
 /**
  * PUT /users/{id} - Update user
  */
-$app->put('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware) {
-    return $authMiddleware($request, function($req) use ($userRepository, $params) {
-        $id = (int)$params['id'];
-        $currentUser = $req->getAttribute('user');
-        
-        if ($id <= 0) {
-            throw new HttpException('Invalid user ID', ErrorCodes::BAD_REQUEST);
-        }
-
-        // Users can only update their own profile (unless admin logic is added)
-        if (!is_array($currentUser) || (int)$currentUser['sub'] !== $id) {
-            throw new HttpException('You can only update your own profile', ErrorCodes::FORBIDDEN);
-        }
-
-        $data = RequestHelper::getJsonBody($req);
-        if (!$data) {
-            throw new HttpException('Request body required', ErrorCodes::BAD_REQUEST);
-        }
-
-        $updateData = [];
-
-        // Handle email update
-        if (isset($data['email'])) {
-            if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
-                throw new HttpException('Invalid email format', ErrorCodes::BAD_REQUEST);
-            }
-            $updateData['email'] = $data['email'];
-        }
-
-        // Handle password update
-        if (isset($data['password'])) {
-            $passwordErrors = PasswordHasher::validateStrength($data['password']);
-            if (!empty($passwordErrors)) {
-                throw new HttpException(implode(', ', $passwordErrors), ErrorCodes::BAD_REQUEST);
-            }
-            $updateData['password_hash'] = PasswordHasher::hash($data['password']);
-        }
-
-        if (empty($updateData)) {
-            throw new HttpException('No valid fields to update (email, password)', ErrorCodes::BAD_REQUEST);
-        }
-
-        try {
-            $user = $userRepository->update($id, $updateData);
-            return ResponseFormatter::success([
-                'message' => 'User updated successfully',
-                'user' => $user->toArray()
-            ]);
-        } catch (\RuntimeException $e) {
-            if (str_contains($e->getMessage(), 'not found')) {
-                throw new HttpException('User not found', ErrorCodes::NOT_FOUND);
-            }
-            if (str_contains($e->getMessage(), 'already in use')) {
-                throw new HttpException('Email already in use', ErrorCodes::CONFLICT);
-            }
-            throw $e;
-        }
-    });
-});
-
-/**
- * PATCH /users/{id} - Partial update user (same as PUT for this API)
- */
-$app->patch('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware) {
-    return $authMiddleware($request, function($req) use ($userRepository, $params) {
+$app->put('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware, $responseFactory) {
+    return $authMiddleware($request, function($req) use ($userRepository, $params, $responseFactory) {
         $id = (int)$params['id'];
         $currentUser = $req->getAttribute('user');
         
@@ -276,10 +216,73 @@ $app->patch('/users/{id}', function($request, $params) use ($userRepository, $au
 
         try {
             $user = $userRepository->update($id, $updateData);
-            return ResponseFormatter::success([
+            return $responseFactory->json(ResponseFormatter::success([
                 'message' => 'User updated successfully',
                 'user' => $user->toArray()
-            ]);
+            ]));
+        } catch (\RuntimeException $e) {
+            if (str_contains($e->getMessage(), 'not found')) {
+                throw new HttpException('User not found', ErrorCodes::NOT_FOUND);
+            }
+            if (str_contains($e->getMessage(), 'already in use')) {
+                throw new HttpException('Email already in use', ErrorCodes::CONFLICT);
+            }
+            throw $e;
+        }
+    });
+});
+
+/**
+ * PATCH /users/{id} - Partial update user
+ */
+$app->patch('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware, $responseFactory) {
+    return $authMiddleware($request, function($req) use ($userRepository, $params, $responseFactory) {
+        $id = (int)$params['id'];
+        $currentUser = $req->getAttribute('user');
+        
+        if ($id <= 0) {
+            throw new HttpException('Invalid user ID', ErrorCodes::BAD_REQUEST);
+        }
+
+        // Users can only update their own profile
+        if (!is_array($currentUser) || (int)$currentUser['sub'] !== $id) {
+            throw new HttpException('You can only update your own profile', ErrorCodes::FORBIDDEN);
+        }
+
+        $data = RequestHelper::getJsonBody($req);
+        if (!$data) {
+            throw new HttpException('Request body required', ErrorCodes::BAD_REQUEST);
+        }
+
+        $updateData = [];
+
+        // Handle email update
+        if (isset($data['email'])) {
+            if (!filter_var($data['email'], FILTER_VALIDATE_EMAIL)) {
+                throw new HttpException('Invalid email format', ErrorCodes::BAD_REQUEST);
+            }
+            $updateData['email'] = $data['email'];
+        }
+
+        // Handle password update
+        if (isset($data['password'])) {
+            $passwordErrors = PasswordHasher::validateStrength($data['password']);
+            if (!empty($passwordErrors)) {
+                throw new HttpException(implode(', ', $passwordErrors), ErrorCodes::BAD_REQUEST);
+            }
+            $updateData['password_hash'] = PasswordHasher::hash($data['password']);
+        }
+
+        if (empty($updateData)) {
+            throw new HttpException('No valid fields to update (email, password)', ErrorCodes::BAD_REQUEST);
+        }
+
+        try {
+            $user = $userRepository->update($id, $updateData);
+            return $responseFactory->json(ResponseFormatter::success([
+                'message' => 'User updated successfully',
+                'user' => $user->toArray()
+            ]));
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'not found')) {
                 throw new HttpException('User not found', ErrorCodes::NOT_FOUND);
@@ -295,8 +298,8 @@ $app->patch('/users/{id}', function($request, $params) use ($userRepository, $au
 /**
  * DELETE /users/{id} - Delete user
  */
-$app->delete('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware) {
-    return $authMiddleware($request, function($req) use ($userRepository, $params) {
+$app->delete('/users/{id}', function($request, $params) use ($userRepository, $authMiddleware, $responseFactory) {
+    return $authMiddleware($request, function($req) use ($userRepository, $params, $responseFactory) {
         $id = (int)$params['id'];
         $currentUser = $req->getAttribute('user');
         
@@ -311,9 +314,9 @@ $app->delete('/users/{id}', function($request, $params) use ($userRepository, $a
 
         try {
             $userRepository->delete($id);
-            return ResponseFormatter::success([
+            return $responseFactory->json(ResponseFormatter::success([
                 'message' => 'User deleted successfully'
-            ]);
+            ]));
         } catch (\RuntimeException $e) {
             if (str_contains($e->getMessage(), 'not found')) {
                 throw new HttpException('User not found', ErrorCodes::NOT_FOUND);

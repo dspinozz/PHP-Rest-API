@@ -102,3 +102,14 @@ TESTS_IMPLEMENTED.md
 TEST_RESULTS.md
 TEST_VERIFICATION.md
 phpunit.xml.dist
+
+# AI Development Artifacts
+.cursor/
+.aider*
+.claude*
+.copilot/
+.continue/
+.codeium/
+.windsurf/
+.bolt/
+.idx/
