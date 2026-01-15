@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  php-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    ports:
+      - "9000:9000"
+    volumes:
+      - .:/app
+    environment:
+      - JWT_SECRET=test-secret-key-for-docker-testing
+    command: php -S 0.0.0.0:9000 test-server.php

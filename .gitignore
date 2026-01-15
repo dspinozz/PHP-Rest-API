@@ -1,0 +1,91 @@
+# Composer
+/vendor/
+composer.lock
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.cache
+/tmp/
+
+# Test coverage
+coverage/
+.phpunit.result.cache
+
+# Build artifacts
+build/
+dist/
+
+# Composer installer (temporary)
+composer-installer.php
+
+# Database files (test databases)
+*.db
+*.sqlite
+/data/*.db
+/data/*.sqlite
+
+# PHP CS Fixer cache
+.php-cs-fixer.cache
+
+# PHPStan cache
+.phpstan/
+
+# Docker
+docker-compose.override.yml
+
+# AI/Development documentation (exclude development docs)
+*GAP*.md
+*ANALYSIS*.md
+*FINAL*.md
+*COMPLETE*.md
+*READY*.md
+*CHECKLIST*.md
+*SUMMARY*.md
+*REPORT*.md
+*NOTES*.md
+*IMPLEMENTATION*.md
+*TESTING*.md
+*DEPENDENCIES*.md
+*INSTALLATION*.md
+*TROUBLESHOOTING*.md
+*RECRUITER*.md
+*DEMO*.md
+*QUICK*.md
+*CURL*.md
+*GITHUB*.md
+*SCHEMA*.md
+*TYPE*.md
+*PROJECT*.md
+*PORTFOLIO*.md
+*AUTOMATED*.md
+*FIXED*.md
+*PRE*.md
+
+# Keep only essential documentation
+!README.md
+!LICENSE
+!API_DOCUMENTATION.md
+!ARCHITECTURE.md
+!AUTHENTICATION_SUMMARY.md
+!SECURITY_FEATURES.md
+!CONTRIBUTING.md

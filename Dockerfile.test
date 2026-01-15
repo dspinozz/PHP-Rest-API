@@ -1,0 +1,22 @@
+FROM php:8.2-cli
+
+# Install Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Set working directory
+WORKDIR /app
+
+# Copy composer files
+COPY composer.json composer.lock* ./
+
+# Install dependencies
+RUN composer install --no-interaction --prefer-dist
+
+# Copy application files
+COPY . .
+
+# Expose port
+EXPOSE 9000
+
+# Start server
+CMD ["php", "-S", "0.0.0.0:9000", "test-server.php"]
